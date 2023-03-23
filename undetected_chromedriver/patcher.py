@@ -247,6 +247,8 @@ class Patcher(object):
         executable_path = executable_path or self.executable_path
         try:
             with io.open(executable_path, "rb") as fh:
+                if b"window.cdc_adoQpoasnfa76pfcZLmcfl_" in fh.read():
+                    return False
                 return fh.read().find(b"undetected chromedriver") != -1
         except FileNotFoundError:
             return False
@@ -254,9 +256,24 @@ class Patcher(object):
     def patch_exe(self):
         start = time.perf_counter()
         logger.info("patching driver executable %s" % self.executable_path)
-    
+        start = time.time()
+
+        def gen_js_whitespaces(match):
+            return b"\n" * len(match.group())
+
+        def gen_call_function_js_cache_name(match):
+            rep_len = len(match.group()) - 3
+            ran_len = random.randint(6, rep_len)
+            bb = b"'" + bytes(str().join(random.choices(population=string.ascii_letters, k=ran_len)), 'ascii') + b"';" \
+                 + (b"\n" * (rep_len - ran_len))
+            return bb
         with io.open(self.executable_path, "r+b") as fh:
+
             content = fh.read()
+            content = re.sub(b"window\.cdc_[a-zA-Z0-9]{22}_(Array|Promise|Symbol) = window\.(Array|Promise|Symbol);",
+                              gen_js_whitespaces, content)
+            content = re.sub(b"window\.cdc_[a-zA-Z0-9]{22}_(Array|Promise|Symbol) \|\|", gen_js_whitespaces, content)
+            content = re.sub(b"'\\$cdc_[a-zA-Z0-9]{22}_';", gen_call_function_js_cache_name, content)
             match_injected_codeblock = re.search(rb"\{window\.cdc.*?;\}", content)
             if match_injected_codeblock:
                 target_bytes = match_injected_codeblock[0]
