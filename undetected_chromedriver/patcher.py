@@ -247,8 +247,6 @@ class Patcher(object):
         executable_path = executable_path or self.executable_path
         try:
             with io.open(executable_path, "rb") as fh:
-                if b"window.cdc_adoQpoasnfa76pfcZLmcfl_" in fh.read():
-                    return False
                 return fh.read().find(b"undetected chromedriver") != -1
         except FileNotFoundError:
             return False
@@ -274,6 +272,10 @@ class Patcher(object):
                               gen_js_whitespaces, content)
             content = re.sub(b"window\.cdc_[a-zA-Z0-9]{22}_(Array|Promise|Symbol) \|\|", gen_js_whitespaces, content)
             content = re.sub(b"'\\$cdc_[a-zA-Z0-9]{22}_';", gen_call_function_js_cache_name, content)
+            content = re.sub(rb"\$cdc_[a-zA-Z0-9]{22}_", lambda m: bytes(
+                random.choices((string.ascii_letters + string.digits).encode("ascii"), k=len(m.group()))), content)
+            fh.seek(0)
+            fh.write(content)
             match_injected_codeblock = re.search(rb"\{window\.cdc.*?;\}", content)
             if match_injected_codeblock:
                 target_bytes = match_injected_codeblock[0]
